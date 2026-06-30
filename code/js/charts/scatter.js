@@ -25,13 +25,6 @@
 
     const MARGIN = { top: 20, right: 20, bottom: 55, left: 62 };
 
-    // HDI colour mapping
-    const HDI_COLORS = {
-        "VH": "#38d9a9",   // Very High — teal
-        "H":  "#63b3ed",   // High — blue
-        "M":  "#f6ad55",   // Medium — orange
-        "L":  "#fc8181",   // Low — red
-    };
     const HDI_LABELS = {
         "VH": "Very High HDI",
         "H":  "High HDI",
@@ -39,6 +32,15 @@
         "L":  "Low HDI",
     };
     const HDI_ORDER = ["VH", "H", "M", "L"];
+    
+    // HDI colour mapping
+    const HDI_COLORS = {
+        "VH": "#38d9a9",   // teal
+        "H":  "#63b3ed",   // blue
+        "M":  "#f6ad55",   // orange
+        "L":  "#fc8181",   // red
+    };
+    
 
     // ── Tooltip ─────────────────────────────────────────────
     function ensureTooltip() {
@@ -55,8 +57,8 @@
         const tt = ensureTooltip();
         const hdiColor = HDI_COLORS[d.hdicode] || "#ccc";
         const gii  = d.gii   != null ? d.gii.toFixed(3)   : "N/A";
-        const gni  = d.gnipc != null ? "$" + d3.format(",.0f")(d.gnipc) : "N/A";
-        const pop  = d.pop_total != null ? d3.format(".2s")(d.pop_total * 1e6) : "N/A";
+        const gni  = d.gnipc != null ? "$" + d3.format(",.0f")(d.gnipc) : "N/A";  // e.g. "$12,500"
+        const pop  = d.pop_total != null ? d3.format(".2s")(d.pop_total * 1e6) : "N/A";  // e.g. "1.4B" for China
         const hdiLabel = HDI_LABELS[d.hdicode] || d.hdicode || "Unknown";
 
         tt.html(`
@@ -103,7 +105,7 @@
         if (!el) return { width: 680, height: 400 };
         const rect = el.getBoundingClientRect();
         return {
-            width:  Math.max(rect.width  - 40, 280),
+            width:  Math.max(rect.width  - 30, 280),
             height: Math.max(rect.height - 90, 200),
         };
     }
@@ -159,7 +161,7 @@
         chartG.append("text")
             .attr("class", "x-axis-label")
             .attr("x", width / 2)
-            .attr("y", height + 46)
+            .attr("y", height + 55)
             .attr("text-anchor", "middle")
             .attr("fill", "#94a3b8")
             .attr("font-size", "11px")
@@ -180,22 +182,22 @@
 
         // Scales
         xScale = d3.scaleLog()
-            .domain([400, 120000])
+            .domain([400, 120000])     // GNI per capita range ($400 to $120,000)
             .range([0, width])
-            .clamp(true);
+            .clamp(true);              // Values outside domain get clamped to edge (not off-chart)
 
         yScale = d3.scaleLinear()
-            .domain([0, 0.95])
-            .range([height, 0]);
+            .domain([0, 0.95])         // GII ranges from 0 (perfect equality) to 1 (very unequal)
+            .range([height, 0]);       // Inverted: 0 at bottom, 0.95 at top
 
         rScale = d3.scaleSqrt()
-            .domain([0, 1500])       // pop_total in millions
-            .range([3, 36])
+            .domain([0, 1500])         // 0 to 1.5 billion population (in millions)
+            .range([3, 36])            // 3px to 36px radius
             .clamp(true);
 
         colorScale = d3.scaleOrdinal()
-            .domain(HDI_ORDER)
-            .range(HDI_ORDER.map(k => HDI_COLORS[k]));
+            .domain(HDI_ORDER)             // ["VH", "H", "M", "L"]
+            .range(HDI_ORDER.map(k => HDI_COLORS[k]));      // ["#38d9a9", "#63b3ed", "#f6ad55", "#fc8181"]
     }
 
     // ── Build legend ─────────────────────────────────────────
@@ -228,13 +230,13 @@
 
     let _hiddenHDI = new Set();
     function _toggleHDIFilter(code) {
-        if (_hiddenHDI.has(code)) _hiddenHDI.delete(code);
-        else _hiddenHDI.add(code);
+        if (_hiddenHDI.has(code)) _hiddenHDI.delete(code);  // If already hidden → show it
+        else _hiddenHDI.add(code);                          // If shown → hide it
 
         // Update legend item opacity
         document.querySelectorAll(".legend-item[data-hdi]").forEach(el => {
             const c = el.getAttribute("data-hdi");
-            el.style.opacity = _hiddenHDI.has(c) ? "0.3" : "1";
+            el.style.opacity = _hiddenHDI.has(c) ? "0.3" : "1";   // If hidden → opacity 0.3
         });
 
         updateScatter();
@@ -274,7 +276,7 @@
 
         // Compute xScale domain from data (keep min 400)
         const xExtent = d3.extent(yearData, d => d.gnipc);
-        xScale.domain([Math.max(350, xExtent[0] * 0.7), xExtent[1] * 1.2]);
+        xScale.domain([Math.max(350, xExtent[0] * .7), xExtent[1] * 1.2]);
 
         // Sort: draw large bubbles first so small ones appear on top
         yearData.sort((a, b) => (b.pop_total || 0) - (a.pop_total || 0));
@@ -284,7 +286,12 @@
             d3.axisBottom(xScale)
                 .ticks(6, "~s")
                 .tickFormat(d => "$" + d3.format(".2s")(d))
-        );
+        )
+        .selectAll("text")
+        .style("text-anchor", "end")
+        .attr("dx", "-.8em")
+        .attr("dy", ".3em")
+        .attr("transform", "rotate(-65)");
         yAxisG.transition().duration(600).call(
             d3.axisLeft(yScale).ticks(7).tickFormat(d => d.toFixed(2))
         );
@@ -306,10 +313,10 @@
         const circles = bubblesG.selectAll(".bubble")
             .data(yearData, d => d.iso3);
 
-        // ENTER
+        // ENTER — new countries (e.g. year changed and a country now has data)
         const circlesEnter = circles.enter().append("circle")
             .attr("class", "bubble")
-            .attr("r", 0)
+            .attr("r", 0)       // Start at radius 0 (invisible) so it appears from center 
             .attr("cx", d => xScale(Math.max(d.gnipc, 350)))
             .attr("cy", d => yScale(d.gii))
             .attr("fill", d => colorScale(d.hdicode))
@@ -332,7 +339,7 @@
                 _onBubbleClick(d);
             });
 
-        // MERGE (enter + update)
+        // MERGE — update both new and existing circles
         circlesEnter.merge(circles)
             .classed("highlighted", d => d.iso3 === state.selectedCountry)
             .classed("dimmed", d => state.selectedCountry && d.iso3 !== state.selectedCountry)
@@ -346,11 +353,11 @@
                 return d.iso3 === state.selectedCountry ? 0.9 : 0.12;
             })
             .transition().duration(600).ease(d3.easeCubicOut)
-            .attr("r", d => rScale(d.pop_total || 1))
-            .attr("cx", d => xScale(Math.max(d.gnipc, 350)))
-            .attr("cy", d => yScale(d.gii));
+            .attr("r", d => rScale(d.pop_total || 1))         // Animate radius
+            .attr("cx", d => xScale(Math.max(d.gnipc, 350)))  // Animate X position
+            .attr("cy", d => yScale(d.gii));                  // Animate Y position
 
-        // EXIT
+        // EXIT — countries with no data this year
         circles.exit()
             .transition().duration(300)
             .attr("r", 0)
@@ -392,13 +399,12 @@
 
     // ── Bubble click handler ─────────────────────────────────
     function _onBubbleClick(d) {
-        if (state.selectedCountry === d.iso3) {
-            // Deselect
-            state.selectedCountry = null;
+        if (state.selectedCountry === d.iso3) {   
+            state.selectedCountry = null;     // Click same bubble again → deselect
         } else {
-            state.selectedCountry = d.iso3;
-            // Add to line chart countries if not present
-            if (!state.lineChartCountries.includes(d.iso3)) {
+            state.selectedCountry = d.iso3;     // Select a country
+            // Add to line chart countries if not present 
+            if (!state.lineChartCountries.includes(d.iso3)) {   
                 state.lineChartCountries = [...state.lineChartCountries.slice(-7), d.iso3];
                 // Refresh country select UI
                 const sel = document.getElementById("line-country-select");
@@ -420,7 +426,7 @@
         const scatterCard = document.getElementById("chart-scatter");
         const lineCard    = document.getElementById("chart-line-card");
         if (lineCard) {
-            lineCard.classList.toggle("active-highlight", state.selectedCountry !== null);
+            lineCard.classList.toggle("active-highlight", state.selectedCountry !== null);  // Add glowing border to the LineChart
         }
     }
 
@@ -429,7 +435,7 @@
         if (!svg) return;
         svg.on("click", (event) => {
             if (event.target.classList.contains("bubble")) return;
-            state.selectedCountry = null;
+            state.selectedCountry = null;       // Click on empty area → deselect
             updateScatter();
             if (typeof updateLineChart === "function") updateLineChart();
             const lineCard = document.getElementById("chart-line-card");

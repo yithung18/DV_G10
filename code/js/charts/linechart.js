@@ -11,7 +11,7 @@
 // ============================================================
 
 (function () {
-    "use strict";
+    "use strict";  // Immediately Invoked Function Expression (all the variables are private and cannot be accessed outside this function)
 
     // ── Module-level variables ──────────────────────────────
     let _allData = [];
@@ -26,11 +26,12 @@
 
     const METRIC_CONFIG = {
         gii: {
-            label: "Gender Inequality Index (GII)",
+            label: "Gender Inequality Index (GII)",  // text shown in Y-axis
             format: d => d.toFixed(3),
             unit: "",
             domain: [0, 0.92],
-            lower_is_better: true,
+            lower_is_better: true, //sort countries best → worst correctly (GII lower = more equal, so want lowest first)
+
         },
         pr_f: {
             label: "Women in Parliament (%)",
@@ -86,7 +87,7 @@
         positionTooltip(event);
     }
 
-    function positionTooltip(event) {
+    function positionTooltip(event) { // Smart positioning: flips left if near screen edge
         const tt = ensureTooltip();
         const node = tt.node();
         const w = node.offsetWidth, h = node.offsetHeight;
@@ -101,17 +102,17 @@
         ensureTooltip().classed("visible", false);
     }
 
-    // ── Colour helpers ───────────────────────────────────────
+    // ── Colour Scale ───────────────────────────────────────
     let colorScale;
 
     function buildColorScale(countries) {
-        colorScale = d3.scaleOrdinal()
+        colorScale = d3.scaleOrdinal() // maps category → colour
             .domain(countries)
-            .range(LINE_COLORS);
+            .range(LINE_COLORS); // assign each country a different colour from the LINE_COLORS
     }
 
-    // ── Dimension helpers ────────────────────────────────────
-    function getContainerSize() {
+    // ── Container Size ────────────────────────────────────
+    function getContainerSize() { 
         const el = document.getElementById("chart-line-card");
         if (!el) return { width: 700, height: 380 };
         const rect = el.getBoundingClientRect();
@@ -125,24 +126,25 @@
     const ISO_TO_NAME = {};
     function buildIsoMap(data) {
         data.forEach(d => { ISO_TO_NAME[d.iso3] = d.country; });
-    }
+    } // Builds a lookup dictionary: { "MYS": "Malaysia", "CHN": "China", ... }
 
     // ── init ─────────────────────────────────────────────────
     function initLineChart(data) {
-        _allData = data;
-        buildIsoMap(data);
+        _allData = data;  // store the dataset
+        buildIsoMap(data); // build iso3 <-> country name map
 
         const container = d3.select("#chart-line-card");
         if (container.empty()) { console.warn("initLineChart: #chart-line-card not found"); return; }
 
-        ensureTooltip();
-        buildColorScale(state.lineChartCountries);
+        ensureTooltip();  // create tooltip element if not exist
+        buildColorScale(state.lineChartCountries); // create colour scale for line chart
 
         // Wire up card controls
         const metricSel = document.getElementById("line-metric-select");
         if (metricSel) {
             metricSel.value = state.selectedMetric;
-            metricSel.addEventListener("change", () => {
+            // if metric changes, update state and redraw chart
+            metricSel.addEventListener("change", () => {  
                 state.selectedMetric = metricSel.value;
                 updateLineChart();
             });
@@ -150,7 +152,7 @@
 
         const countrySel = document.getElementById("line-country-select");
         if (countrySel) {
-            // Populate options
+            // Populate all 206 countires as options
             const allCountries = [...new Set(data.map(d => d.iso3))].sort((a, b) => {
                 const na = ISO_TO_NAME[a] || a;
                 const nb = ISO_TO_NAME[b] || b;
@@ -195,6 +197,8 @@
             .attr("aria-label", "Multi-line chart: gender indicator trends over time");
 
         // Clip path for focus area
+        // any content rendered inside a group that uses this clip path gets cut off at the chart boundary.
+        // This prevents lines from spilling into the axes when brush/zoom.
         svg.append("defs").append("clipPath")
             .attr("id", clipId)
             .append("rect")
@@ -204,19 +208,19 @@
         // ── Focus group (main chart) ──
         focusG = svg.append("g")
             .attr("class", "focus-group")
-            .attr("transform", `translate(${MARGIN.left},${MARGIN.top})`);
-
+            .attr("transform", `translate(${MARGIN.left},${MARGIN.top})`); // moves the entire group right and down to create the margin space for the axes.
+            
         // Grid
-        focusG.append("g").attr("class", "grid grid-y");
+        focusG.append("g").attr("class", "grid grid-y");  // a <g> for horizontal grid lines
 
         // Lines group (clipped)
         focusG.append("g")
-            .attr("class", "lines-group")
+            .attr("class", "lines-group")  // where the country lines will live (clipped)
             .attr("clip-path", `url(#${clipId})`);
 
         // End labels group (clipped)
         focusG.append("g")
-            .attr("class", "line-labels-group")
+            .attr("class", "line-labels-group")  // where the country name labels go (clipped)
             .attr("clip-path", `url(#${clipId})`);
 
         // Highlight dot group
@@ -226,7 +230,7 @@
 
         // Overlay for mouse events
         focusG.append("rect")
-            .attr("class", "overlay-rect")
+            .attr("class", "overlay-rect")  // an invisible rectangle that captures all mouse events
             .attr("width", width).attr("height", focusH)
             .attr("fill", "none")
             .attr("pointer-events", "all");
@@ -250,7 +254,7 @@
             .attr("font-size", "11px")
             .attr("font-family", "Inter, sans-serif");
 
-        // ── Context group (mini chart + brush) ──
+        // ── Context group (mini chart + brush) ── Positioned below the main chart
         const contextTop = MARGIN.top + focusH + CONTEXT_MARGIN.top + 20;
         contextG = svg.append("g")
             .attr("class", "context-group")
@@ -262,11 +266,11 @@
             .attr("class", "axis axis--x context-x-axis")
             .attr("transform", `translate(0,${CONTEXT_HEIGHT - CONTEXT_MARGIN.bottom})`);
 
-        // Brush
+        // D3 Brush
         const brushH = CONTEXT_HEIGHT - CONTEXT_MARGIN.bottom;
         brushBehavior = d3.brushX()
-            .extent([[0, 0], [width, brushH]])
-            .on("end", _brushed);
+            .extent([[0, 0], [width, brushH]])  // Brush can only move horizontally within boundaries
+            .on("end", _brushed);    // Call _brushed when user finishes brushing
 
         contextG.append("g")
             .attr("class", "brush")
@@ -280,11 +284,11 @@
         yContext = d3.scaleLinear().range([brushH, 0]);
 
         // Line generators
-        lineGenerator = d3.line()
-            .defined(d => d.y != null && !isNaN(d.y))
-            .x(d => xFocus(d.x))
-            .y(d => yFocus(d.y))
-            .curve(d3.curveMonotoneX);
+        lineGenerator = d3.line()  // path generator 
+            .defined(d => d.y != null && !isNaN(d.y))  // skip missing value
+            .x(d => xFocus(d.x))     // map x (year) to horizontal position
+            .y(d => yFocus(d.y))     // map y (value) to vertical position
+            .curve(d3.curveMonotoneX);  // smooth curve through points 
 
         contextLineGenerator = d3.line()
             .defined(d => d.y != null && !isNaN(d.y))
@@ -310,7 +314,7 @@
     function updateLineChart() {
         if (!svg || _allData.length === 0) return;
 
-        const metric = state.selectedMetric;
+        const metric = state.selectedMetric;  // read the currently active metric
         const metaConfig = METRIC_CONFIG[metric] || METRIC_CONFIG.gii;
 
         // Apply HDI group + region filters
@@ -320,7 +324,7 @@
             return true;
         });
 
-        // Build series: one per selected country
+        // Build series: one object per selected country
         const countries = state.lineChartCountries.filter(iso =>
             filtered.some(d => d.iso3 === iso)
         );
@@ -334,8 +338,8 @@
                 iso3: iso,
                 name: ISO_TO_NAME[iso] || iso,
                 points: countryRows.map(d => ({
-                    x: new Date(d.year, 0, 1),
-                    y: d[metric],
+                    x: new Date(d.year, 0, 1), // convert year to date
+                    y: d[metric],  // select metric based on dropdown; e.g. d.gii or d.pr_f
                     year: d.year,
                 })),
             };
@@ -401,27 +405,30 @@
                 .tickFormat("")
         );
 
-        // ── Focus Lines ──
+        // ── Focus Lines ── (Enter / Update / Exit pattern)
         const linesGroup = focusG.select(".lines-group");
         const sel = linesGroup.selectAll(".chart-line")
-            .data(seriesData, d => d.iso3);
+            .data(seriesData, d => d.iso3);  // key by iso3 so D3 knows which line = which country
 
+        // ENTER ── draw new line
         sel.enter().append("path")
             .attr("class", "chart-line")
             .attr("fill", "none")
             .attr("stroke", d => colorScale(d.iso3))
-            .attr("stroke-opacity", 0)
-            .merge(sel)
+            .attr("stroke-opacity", 0)   // start invisible
+            .merge(sel)                  // Combine enter + existing update selection
             .attr("stroke", d => colorScale(d.iso3))
-            .classed("highlighted", d => d.iso3 === state.selectedCountry)
+            // apply to ALL (new and existing): 
+            .classed("highlighted", d => d.iso3 === state.selectedCountry)  
             .classed("dimmed", d => state.selectedCountry && d.iso3 !== state.selectedCountry)
             .transition().duration(500)
             .attr("stroke-opacity", d => {
                 if (!state.selectedCountry) return 0.9;
                 return d.iso3 === state.selectedCountry ? 1 : 0.12;
             })
-            .attr("d", d => lineGenerator(d.points));
+            .attr("d", d => lineGenerator(d.points));  // draws the path
 
+        // EXIT — removed lines (country was deselected)
         sel.exit().transition().duration(300)
             .attr("stroke-opacity", 0)
             .remove();
@@ -439,7 +446,7 @@
                 const last = d.points.filter(p =>
                     p.x <= currentXDomain[1] && p.y != null && !isNaN(p.y)
                 ).at(-1);
-                return last ? d.name.split(" ")[0] : "";
+                return last ? d.name.split(" ")[0] : "";  // Show first word of country name
             })
             .transition().duration(500)
             .attr("x", width + 5)
@@ -447,7 +454,7 @@
                 const last = d.points.filter(p =>
                     p.x <= currentXDomain[1] && p.y != null && !isNaN(p.y)
                 ).at(-1);
-                return last ? yFocus(last.y) : 0;
+                return last ? yFocus(last.y) : 0;  // y-coordinate of the last point
             })
             .attr("fill", d => colorScale(d.iso3))
             .attr("opacity", d => {
@@ -491,7 +498,7 @@
             currentXDomain = xContext.domain();
         } else {
             const [x0, x1] = event.selection;
-            currentXDomain = [xContext.invert(x0), xContext.invert(x1)];
+            currentXDomain = [xContext.invert(x0), xContext.invert(x1)]; // invert the selection to get the year range
         }
 
         state.brushedYearRange = [
@@ -526,11 +533,11 @@
     window.resetLineBrush = resetBrush;
 
     // ── Mouse interaction (vertical tooltip line) ────────────
-    function _onMouseMove(event) {
+    function _onMouseMove(event) {  
         if (!svg) return;
-        const [mx] = d3.pointer(event);
-        const hoverDate = xFocus.invert(mx);
-        const hoverYear = hoverDate.getFullYear();
+        const [mx] = d3.pointer(event);  // get mouse X position relative to the SVG container
+        const hoverDate = xFocus.invert(mx);  // invert the mouse X position to get the year
+        const hoverYear = hoverDate.getFullYear(); // get the year from the mouse X position
 
         // Find nearest data point for each country
         const metric = state.selectedMetric;
